@@ -119,6 +119,7 @@ const getCurrentLocation = () => {
 useEffect(() => {
   setIsMounted(true)
 
+  // 📥 fetch reports
   const fetchReports = async () => {
     const { data, error } = await supabase
       .from("reports")
@@ -142,9 +143,8 @@ useEffect(() => {
   }
 
   fetchReports()
-}, [])
 
-  // 🔐 Initial user check
+  // 🔐 initial user check
   supabase.auth.getUser().then(async ({ data }) => {
     if (data.user && data.user.email_confirmed_at) {
       setUser(data.user)
@@ -161,7 +161,7 @@ useEffect(() => {
     }
   })
 
-  // 🔥 Auth listener
+  // 🔥 auth listener
   const { data: listener } = supabase.auth.onAuthStateChange(
     async (event, session) => {
       if (session?.user) {
