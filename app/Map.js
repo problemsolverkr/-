@@ -119,7 +119,6 @@ const getCurrentLocation = () => {
 useEffect(() => {
   setIsMounted(true)
 
-  // 📥 fetch reports
   const fetchReports = async () => {
     const { data, error } = await supabase
       .from("reports")
@@ -142,8 +141,7 @@ useEffect(() => {
     }
   }
 
-  fetchReports() // ✅ MUST BE INSIDE
-
+  fetchReports()
 }, [])
 
   // 🔐 Initial user check
