@@ -385,7 +385,7 @@ const getCurrentLocation = () => {
   updated[i].cleaned = true
   updated[i].afterImage = afterUrl
   setReports(updated)
-  setCleanCount((prev) => prev + 1)
+  
 }}
                   >
                     청소 완료 인증
