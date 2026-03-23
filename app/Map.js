@@ -88,6 +88,8 @@ export default function Map() {
   // 🔐 User state
   const [user, setUser] = useState(null)
   
+  console.log("USER CHECK:", user)
+  
   // 📍 GPS: get current location
 const getCurrentLocation = () => {
   if (!navigator.geolocation) {
@@ -115,6 +117,7 @@ const getCurrentLocation = () => {
   const [description, setDescription] = useState("")
   const [reports, setReports] = useState([])
   const [cleanCount, setCleanCount] = useState(0)
+  const [authReady, setAuthReady] = useState(false)
 
 useEffect(() => {
   setIsMounted(true)
@@ -144,90 +147,49 @@ useEffect(() => {
 
   fetchReports()
 
-  // 🔐 initial user check
+  // 🔐 get current user
   supabase.auth.getUser().then(async ({ data }) => {
-    if (data.user && data.user.email_confirmed_at) {
-      setUser(data.user)
+    const currentUser = data.user || null
+    setUser(currentUser)
 
+    if (currentUser) {
       const { count } = await supabase
         .from("reports")
         .select("*", { count: "exact", head: true })
-        .eq("user_id", data.user.id)
+        .eq("user_id", currentUser.id)
+        .eq("cleaned", true)
+
+      setCleanCount(count || 0)
+    }
+	
+	setAuthReady(true)
+  })
+
+  // 🔥 auth listener
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const currentUser = session?.user || null
+    setUser(currentUser)
+
+    if (currentUser) {
+      const { count } = await supabase
+        .from("reports")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", currentUser.id)
         .eq("cleaned", true)
 
       setCleanCount(count || 0)
     } else {
-      setUser(null)
+      setCleanCount(0)
     }
   })
 
-  // 🔥 auth listener
-  const { data: listener } = supabase.auth.onAuthStateChange(
-    async (event, session) => {
-      if (session?.user) {
-        setUser(session.user)
-
-        const { count } = await supabase
-          .from("reports")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", session.user.id)
-          .eq("cleaned", true)
-
-        setCleanCount(count || 0)
-      } else {
-        setUser(null)
-        setCleanCount(0)
-      }
-    }
-  )
-
-  return () => {
-    listener.subscription.unsubscribe()
-  }
+  return () => subscription.unsubscribe()
 }, [])
 
   // 📥 Load reports
 
-  useEffect(() => {
-    setIsMounted(true)
-
-    const fetchReports = async () => {
-      const { data, error } = await supabase.from("reports").select("*")
-      if (!error && data) {
-        const formatted = data.map((r) => ({
-          id: r.id,
-          position: [r.lat, r.lng],
-          severity: r.severity,
-          description: r.description,
-          image: r.image_url,
-          afterImage: r.after_url,
-          cleaned: r.cleaned,
-          created_at: r.created_at,
-          user_id: r.user_id,
-        }))
-        setReports(formatted)
-      }
-    }
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          setUser(session.user)
-          const { count } = await supabase
-            .from("reports")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", session.user.id)
-            .eq("cleaned", true)
-          setCleanCount(count || 0)
-        } else {
-          setUser(null)
-          setCleanCount(0)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
-  }, [])
 
 
   if (!isMounted) return null
