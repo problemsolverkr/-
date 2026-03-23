@@ -120,20 +120,9 @@ const getCurrentLocation = () => {
   setIsMounted(true)
 
   // 🔐 Get user
-  supabase.auth.getUser().then(async ({ data }) => {
+  supabase.auth.getUser().then(({ data }) => {
   if (data.user && data.user.email_confirmed_at) {
     setUser(data.user)
-
-    // 🧹 Fetch how many places user cleaned
-    const { count, error } = await supabase
-      .from("reports")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", data.user.id)
-      .eq("cleaned", true)
-
-    if (!error) {
-      setCleanCount(count || 0)
-    }
   } else {
     setUser(null)
   }
