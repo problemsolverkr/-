@@ -114,7 +114,7 @@ const getCurrentLocation = () => {
   const [severity, setSeverity] = useState("보통")
   const [description, setDescription] = useState("")
   const [reports, setReports] = useState([])
-  const [cleanCount, setCleanCount] = useState(0)
+  
 
   useEffect(() => {
   setIsMounted(true)
