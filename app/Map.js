@@ -209,8 +209,6 @@ useEffect(() => {
       }
     }
 
-    fetchReports()
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
