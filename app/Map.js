@@ -186,31 +186,6 @@ useEffect(() => {
   }
 }, [])
 
-  // 📥 Load reports
-  const fetchReports = async () => {
-    const { data, error } = await supabase
-      .from("reports")
-      .select("*")
-
-    if (!error && data) {
-      const formatted = data.map((r) => ({
-  id: r.id, // ✅ ADD
-  position: [r.lat, r.lng],
-  severity: r.severity,
-  description: r.description,
-  image: r.image_url,
-  afterImage: r.after_url,
-  cleaned: r.cleaned,
-  created_at: r.created_at,
-  user_id: r.user_id, // ✅ ADD (for later)
-}))
-
-      setReports(formatted)
-    }
-  }
-
-  fetchReports()
-}, [])
 
   if (!isMounted) return null
 
