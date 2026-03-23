@@ -114,14 +114,26 @@ const getCurrentLocation = () => {
   const [severity, setSeverity] = useState("보통")
   const [description, setDescription] = useState("")
   const [reports, setReports] = useState([])
+  const [cleanCount, setCleanCount] = useState(0)
 
   useEffect(() => {
   setIsMounted(true)
 
   // 🔐 Get user
-  supabase.auth.getUser().then(({ data }) => {
+  supabase.auth.getUser().then(async ({ data }) => {
   if (data.user && data.user.email_confirmed_at) {
     setUser(data.user)
+
+    // 🧹 Fetch how many places user cleaned
+    const { count, error } = await supabase
+      .from("reports")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", data.user.id)
+      .eq("cleaned", true)
+
+    if (!error) {
+      setCleanCount(count || 0)
+    }
   } else {
     setUser(null)
   }
@@ -257,15 +269,17 @@ const getCurrentLocation = () => {
     <button
       onClick={getCurrentLocation}
       style={{
-        position: "absolute",
-        top: "10px",
-        right: "10px",
-        zIndex: 1000,
-        background: "#222",
-        color: "white",
-        padding: "8px 12px",
-        borderRadius: "8px",
-      }}
+  position: "absolute",
+  bottom: "20px",          // 🔽 move to bottom
+  right: "20px",
+  zIndex: 500,             // 🔽 lower so it doesn't block UI
+  background: "#222",
+  color: "white",
+  padding: "6px 10px",     // 🔽 smaller
+  borderRadius: "20px",    // 🔽 pill style
+  fontSize: "12px",        // 🔽 smaller text
+  opacity: 0.9,
+}}
     >
       📍 내 위치로 제보
     </button>
@@ -371,6 +385,7 @@ const getCurrentLocation = () => {
   updated[i].cleaned = true
   updated[i].afterImage = afterUrl
   setReports(updated)
+  
 }}
                   >
                     청소 완료 인증
