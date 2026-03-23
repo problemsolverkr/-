@@ -116,75 +116,28 @@ const getCurrentLocation = () => {
   const [reports, setReports] = useState([])
   const [cleanCount, setCleanCount] = useState(0)
 
-useEffect(() => {
+  useEffect(() => {
   setIsMounted(true)
 
-  const fetchReports = async () => {
-    const { data, error } = await supabase
-      .from("reports")
-      .select("*")
-
-    if (!error && data) {
-      const formatted = data.map((r) => ({
-        id: r.id,
-        position: [r.lat, r.lng],
-        severity: r.severity,
-        description: r.description,
-        image: r.image_url,
-        afterImage: r.after_url,
-        cleaned: r.cleaned,
-        created_at: r.created_at,
-        user_id: r.user_id,
-      }))
-
-      setReports(formatted)
-    }
-  }
-
-  fetchReports()
-}, [])
-
-  // 🔐 Initial user check
+  // 🔐 Get user
   supabase.auth.getUser().then(async ({ data }) => {
-    if (data.user && data.user.email_confirmed_at) {
-      setUser(data.user)
+  if (data.user && data.user.email_confirmed_at) {
+    setUser(data.user)
 
-      const { count } = await supabase
-        .from("reports")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", data.user.id)
-        .eq("cleaned", true)
+    // 🧹 Fetch how many places user cleaned
+    const { count, error } = await supabase
+      .from("reports")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", data.user.id)
+      .eq("cleaned", true)
 
+    if (!error) {
       setCleanCount(count || 0)
-    } else {
-      setUser(null)
     }
-  })
-
-  // 🔥 Auth listener
-  const { data: listener } = supabase.auth.onAuthStateChange(
-    async (event, session) => {
-      if (session?.user) {
-        setUser(session.user)
-
-        const { count } = await supabase
-          .from("reports")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", session.user.id)
-          .eq("cleaned", true)
-
-        setCleanCount(count || 0)
-      } else {
-        setUser(null)
-        setCleanCount(0)
-      }
-    }
-  )
-
-  return () => {
-    listener.subscription.unsubscribe()
+  } else {
+    setUser(null)
   }
-}, [])
+})
 
   // 📥 Load reports
   const fetchReports = async () => {
