@@ -95,22 +95,6 @@ const getCurrentLocation = () => {
     return
   }
 
-<div
-  style={{
-    position: "absolute",
-    top: "60px",
-    right: "10px",
-    zIndex: 1000,
-    background: "white",
-    padding: "8px 12px",
-    borderRadius: "8px",
-    fontWeight: "bold",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-  }}
->
-  🧹 내가 청소한 곳: {cleanCount}
-</div>
-
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const lat = pos.coords.latitude
@@ -132,28 +116,80 @@ const getCurrentLocation = () => {
   const [reports, setReports] = useState([])
   const [cleanCount, setCleanCount] = useState(0)
 
-  useEffect(() => {
+useEffect(() => {
   setIsMounted(true)
 
-  // 🔐 Get user
+  // 🔐 Initial user check
   supabase.auth.getUser().then(async ({ data }) => {
-  if (data.user && data.user.email_confirmed_at) {
-    setUser(data.user)
+    if (data.user && data.user.email_confirmed_at) {
+      setUser(data.user)
 
-    // 🧹 Fetch how many places user cleaned
-    const { count, error } = await supabase
-      .from("reports")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", data.user.id)
-      .eq("cleaned", true)
+      // 🧹 Fetch clean count
+      const { count, error } = await supabase
+        .from("reports")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", data.user.id)
+        .eq("cleaned", true)
 
-    if (!error) {
-      setCleanCount(count || 0)
+      if (!error) {
+        setCleanCount(count || 0)
+      }
+    } else {
+      setUser(null)
     }
-  } else {
-    setUser(null)
+  })
+
+  // 🔥 NEW: Listen for login/logout changes
+  const { data: listener } = supabase.auth.onAuthStateChange(
+    async (event, session) => {
+      if (session?.user) {
+        setUser(session.user)
+
+        // 🧹 update clean count after login
+        const { count } = await supabase
+          .from("reports")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", session.user.id)
+          .eq("cleaned", true)
+
+        setCleanCount(count || 0)
+      } else {
+        setUser(null)
+        setCleanCount(0)
+      }
+    }
+  )
+
+  // 📥 Load reports (your existing function)
+  const fetchReports = async () => {
+    const { data, error } = await supabase
+      .from("reports")
+      .select("*")
+
+    if (!error && data) {
+      const formatted = data.map((r) => ({
+        id: r.id,
+        position: [r.lat, r.lng],
+        severity: r.severity,
+        description: r.description,
+        image: r.image_url,
+        afterImage: r.after_url,
+        cleaned: r.cleaned,
+        created_at: r.created_at,
+        user_id: r.user_id,
+      }))
+
+      setReports(formatted)
+    }
   }
-})
+
+  fetchReports()
+
+  // 🧹 cleanup listener
+  return () => {
+    listener.subscription.unsubscribe()
+  }
+}, [])
 
   // 📥 Load reports
   const fetchReports = async () => {
