@@ -114,7 +114,6 @@ const getCurrentLocation = () => {
   const [severity, setSeverity] = useState("보통")
   const [description, setDescription] = useState("")
   const [reports, setReports] = useState([])
-  
 
   useEffect(() => {
   setIsMounted(true)
@@ -258,17 +257,15 @@ const getCurrentLocation = () => {
     <button
       onClick={getCurrentLocation}
       style={{
-  position: "absolute",
-  bottom: "20px",          // 🔽 move to bottom
-  right: "20px",
-  zIndex: 500,             // 🔽 lower so it doesn't block UI
-  background: "#222",
-  color: "white",
-  padding: "6px 10px",     // 🔽 smaller
-  borderRadius: "20px",    // 🔽 pill style
-  fontSize: "12px",        // 🔽 smaller text
-  opacity: 0.9,
-}}
+        position: "absolute",
+        top: "10px",
+        right: "10px",
+        zIndex: 1000,
+        background: "#222",
+        color: "white",
+        padding: "8px 12px",
+        borderRadius: "8px",
+      }}
     >
       📍 내 위치로 제보
     </button>
