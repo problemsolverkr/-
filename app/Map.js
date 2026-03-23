@@ -162,28 +162,28 @@ useEffect(() => {
   })
 
   // 🔥 auth listener
-  const { data: listener } = supabase.auth.onAuthStateChange(
-    async (event, session) => {
-      if (session?.user) {
-        setUser(session.user)
+const {
+  data: { subscription },
+} = supabase.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    setUser(session.user)
 
-        const { count } = await supabase
-          .from("reports")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", session.user.id)
-          .eq("cleaned", true)
+    const { count } = await supabase
+      .from("reports")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", session.user.id)
+      .eq("cleaned", true)
 
-        setCleanCount(count || 0)
-      } else {
-        setUser(null)
-        setCleanCount(0)
-      }
-    }
-  )
-
-  return () => {
-    listener.subscription.unsubscribe()
+    setCleanCount(count || 0)
+  } else {
+    setUser(null)
+    setCleanCount(0)
   }
+})
+
+return () => {
+  subscription.unsubscribe()
+}
 }, [])
 
 
