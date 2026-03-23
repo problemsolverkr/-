@@ -119,7 +119,7 @@ const getCurrentLocation = () => {
 useEffect(() => {
   setIsMounted(true)
 
-  // 📥 Load reports
+  // 📥 fetch reports
   const fetchReports = async () => {
     const { data, error } = await supabase
       .from("reports")
@@ -142,7 +142,9 @@ useEffect(() => {
     }
   }
 
-  fetchReports()
+  fetchReports() // ✅ MUST BE INSIDE
+
+}, [])
 
   // 🔐 Initial user check
   supabase.auth.getUser().then(async ({ data }) => {
