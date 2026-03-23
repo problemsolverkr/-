@@ -119,48 +119,7 @@ const getCurrentLocation = () => {
 useEffect(() => {
   setIsMounted(true)
 
-  // 🔐 Initial user check
-  supabase.auth.getUser().then(async ({ data }) => {
-    if (data.user && data.user.email_confirmed_at) {
-      setUser(data.user)
-
-      // 🧹 Fetch clean count
-      const { count, error } = await supabase
-        .from("reports")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", data.user.id)
-        .eq("cleaned", true)
-
-      if (!error) {
-        setCleanCount(count || 0)
-      }
-    } else {
-      setUser(null)
-    }
-  })
-
-  // 🔥 NEW: Listen for login/logout changes
-  const { data: listener } = supabase.auth.onAuthStateChange(
-    async (event, session) => {
-      if (session?.user) {
-        setUser(session.user)
-
-        // 🧹 update clean count after login
-        const { count } = await supabase
-          .from("reports")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", session.user.id)
-          .eq("cleaned", true)
-
-        setCleanCount(count || 0)
-      } else {
-        setUser(null)
-        setCleanCount(0)
-      }
-    }
-  )
-
-  // 📥 Load reports (your existing function)
+  // 📥 Load reports
   const fetchReports = async () => {
     const { data, error } = await supabase
       .from("reports")
@@ -185,7 +144,43 @@ useEffect(() => {
 
   fetchReports()
 
-  // 🧹 cleanup listener
+  // 🔐 Initial user check
+  supabase.auth.getUser().then(async ({ data }) => {
+    if (data.user && data.user.email_confirmed_at) {
+      setUser(data.user)
+
+      const { count } = await supabase
+        .from("reports")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", data.user.id)
+        .eq("cleaned", true)
+
+      setCleanCount(count || 0)
+    } else {
+      setUser(null)
+    }
+  })
+
+  // 🔥 Auth listener
+  const { data: listener } = supabase.auth.onAuthStateChange(
+    async (event, session) => {
+      if (session?.user) {
+        setUser(session.user)
+
+        const { count } = await supabase
+          .from("reports")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", session.user.id)
+          .eq("cleaned", true)
+
+        setCleanCount(count || 0)
+      } else {
+        setUser(null)
+        setCleanCount(0)
+      }
+    }
+  )
+
   return () => {
     listener.subscription.unsubscribe()
   }
