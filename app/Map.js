@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import L from "leaflet"
+import { useMap } from "react-leaflet"
 import {
   MapContainer,
   TileLayer,
@@ -21,14 +22,13 @@ const createIcon = (report) =>
         ${
           !report.cleaned
             ? `
-        <!-- White base -->
-        <circle cx="37" cy="37" r="20" fill="white" opacity="0.9"/>
+
 
         <!-- Aura -->
-        <circle cx="37" cy="37" r="22"
+        <circle cx="37" cy="37" r="20"
           fill="${report.severity}"
           opacity="0.25"/>
-        <circle cx="37" cy="37" r="16"
+        <circle cx="37" cy="37" r="14"
           fill="${report.severity}"
           opacity="0.45"/>
         `
@@ -102,7 +102,10 @@ const getCurrentLocation = () => {
       const lat = pos.coords.latitude
       const lng = pos.coords.longitude
 
-      setPosition([lat, lng])
+      const newPos = [lat, lng]
+
+      setPosition(newPos)   // 🚬 report marker
+      setMyLocation(newPos) // 🔵 blue dot
     },
     () => {
       alert("위치 권한을 허용해주세요 📍")
@@ -112,12 +115,18 @@ const getCurrentLocation = () => {
 
   // 📍 Map/report state
   const [position, setPosition] = useState(null)
+  const [myLocation, setMyLocation] = useState(null)
   const [image, setImage] = useState(null)
   const [severity, setSeverity] = useState("보통")
   const [description, setDescription] = useState("")
   const [reports, setReports] = useState([])
   const [cleanCount, setCleanCount] = useState(0)
   const [authReady, setAuthReady] = useState(false)
+  const [showLogin, setShowLogin] = useState(false)
+const [email, setEmail] = useState("")
+const [password, setPassword] = useState("")
+const [isSignup, setIsSignup] = useState(false)
+const [showMenu, setShowMenu] = useState(false)
 
 useEffect(() => {
   setIsMounted(true)
@@ -146,6 +155,25 @@ useEffect(() => {
   }
 
   fetchReports()
+  
+  // 🔥 REALTIME STARTS HERE
+const channel = supabase
+  .channel("reports-realtime")
+  .on(
+    "postgres_changes",
+    {
+      event: "*",
+      schema: "public",
+      table: "reports",
+    },
+    (payload) => {
+      console.log("Realtime change:", payload)
+
+      // 🔄 reload reports
+      fetchReports()
+    }
+  )
+  .subscribe()
 
   // 🔐 get current user
   supabase.auth.getUser().then(async ({ data }) => {
@@ -167,32 +195,38 @@ useEffect(() => {
 
   // 🔥 auth listener
   const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange(async (event, session) => {
-    const currentUser = session?.user || null
-    setUser(currentUser)
+  data: { subscription },
+} = supabase.auth.onAuthStateChange(async (event, session) => {
+  const currentUser = session?.user || null
+  setUser(currentUser)
 
-    if (currentUser) {
-      const { count } = await supabase
-        .from("reports")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", currentUser.id)
-        .eq("cleaned", true)
+  if (currentUser) {
+    const { count } = await supabase
+      .from("reports")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", currentUser.id)
+      .eq("cleaned", true)
 
-      setCleanCount(count || 0)
-    } else {
-      setCleanCount(0)
-    }
-  })
+    setCleanCount(count || 0)
+  } else {
+    setCleanCount(0)
+  }
 
-  return () => subscription.unsubscribe()
+  setAuthReady(true) // 🔥 THIS IS CRITICAL
+})
+
+  return () => {
+  subscription.unsubscribe()
+  supabase.removeChannel(channel)
+}
 }, [])
 
   // 📥 Load reports
 
 
 
- if (!isMounted || !authReady) return null
+if (!isMounted) return null
+
 
   // 🎨 Severity colors
   const getSeverityColor = (severity) => {
@@ -241,44 +275,71 @@ useEffect(() => {
     return
   }
 
-  // 📸 Upload image
-  const fileName = `${Date.now()}-${image.name}`
+// 📸 Upload image
+const fileName = `${Date.now()}-${image.name}`
 
-  const { error: uploadError } = await supabase.storage
-    .from("report-images")
-    .upload(fileName, image)
+// 🔍 DEBUG
+console.log("USER:", user)
+console.log("IMAGE:", image)
 
-  if (uploadError) {
-    alert("이미지 업로드 실패")
-    return
-  }
 
-  const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/report-images/${fileName}`
+const { data, error: uploadError } = await supabase.storage
+  .from("report-images")
+  .upload(fileName, image)
 
-  // 💾 Save to DB
-  const { error } = await supabase.from("reports").insert([
-    {
-      lat: position[0],
-      lng: position[1],
-      severity,
-      description,
-      image_url: imageUrl,
-      cleaned: false,
-      user_id: user.id,
-    },
-  ])
+console.log("UPLOAD DATA:", data)
+console.log("UPLOAD ERROR:", uploadError)
 
-  if (error) {
-    alert("저장 실패")
-    return
-  }
+if (uploadError) {
+  alert("이미지 업로드 실패: " + uploadError.message)
+  return
+}
 
-  alert("제보 완료 🎉")
+const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/report-images/${fileName}`
 
-  setPosition(null)
-  setImage(null)
-  setSeverity("보통")
-  setDescription("")
+// 💾 Save to DB
+const { error } = await supabase.from("reports").insert([
+  {
+    lat: position[0],
+    lng: position[1],
+    severity,
+    description,
+    image_url: imageUrl,
+    cleaned: false,
+    user_id: user.id,
+  },
+])
+
+if (error) {
+  alert("저장 실패")
+  return
+}
+
+alert("제보 완료 🎉")
+
+// 🔄 refresh reports
+const { data: refreshedData } = await supabase.from("reports").select("*")
+
+if (refreshedData) {
+  const formatted = refreshedData.map((r) => ({
+    id: r.id,
+    position: [r.lat, r.lng],
+    severity: r.severity,
+    description: r.description,
+    image: r.image_url,
+    afterImage: r.after_url,
+    cleaned: r.cleaned,
+    created_at: r.created_at,
+    user_id: r.user_id,
+  }))
+
+  setReports(formatted)
+}
+
+setPosition(null)
+setImage(null)
+setSeverity("보통")
+setDescription("")
 }
 
   // 📍 Click handler
@@ -291,8 +352,89 @@ useEffect(() => {
     return null
   }
 
+function MapController({ position }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (position) {
+      map.flyTo(position, 18, {
+        duration: 1,
+      })
+    }
+  }, [position, map])
+
+  return null
+}
+
  return (
   <>
+  
+ <div style={{
+  position: "absolute",
+  top: 0,
+  left: 0,
+  width: "100%",
+  height: "50px",
+  background: "#111",
+  color: "white",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
+  fontWeight: "bold"
+}}>
+  여기꽁
+
+  {/* right side */}
+  <div style={{
+    position: "absolute",
+    right: "15px",
+    fontSize: "14px"
+  }}>
+    {!user ? (
+  <span
+    style={{ cursor: "pointer" }}
+    onClick={() => setShowLogin(true)}
+  >
+    로그인
+  </span>
+) : (
+  <div style={{ position: "relative" }}>
+    <span
+      style={{ cursor: "pointer" }}
+      onClick={() => setShowMenu(!showMenu)}
+    >
+      👤 {user.email} ▾
+    </span>
+
+    {showMenu && (
+      <div style={{
+        position: "absolute",
+        right: 0,
+        marginTop: "5px",
+        background: "white",
+        color: "black",
+        borderRadius: "6px",
+        padding: "8px",
+        boxShadow: "0 5px 15px rgba(0,0,0,0.2)"
+      }}>
+        <div
+          style={{ cursor: "pointer" }}
+          onClick={async () => {
+            await supabase.auth.signOut()
+            setShowMenu(false)
+            alert("로그아웃 완료 👋")
+          }}
+        >
+          로그아웃
+        </div>
+      </div>
+    )}
+  </div>
+)}
+  </div>
+</div>
+  
     <button
       onClick={getCurrentLocation}
       style={{
@@ -311,18 +453,153 @@ useEffect(() => {
       📍 내 위치로 제보
     </button>
 
-    <MapContainer
-      key="map"
-      center={[37.5725, 126.979]}
-      zoom={15}
-      style={{ height: "100vh", width: "100%" }}
-    >
+{showLogin && (
+  <div style={{
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    background: "rgba(0,0,0,0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000
+  }}>
+    <div style={{
+      background: "white",
+      padding: "25px",
+      borderRadius: "12px",
+      width: "320px",
+      boxShadow: "0 10px 30px rgba(0,0,0,0.2)"
+    }}>
+      
+      <h3 style={{ marginBottom: "15px", textAlign: "center" }}>
+        {isSignup ? "회원가입" : "로그인"}
+      </h3>
+
+      <input
+        type="email"
+        placeholder="이메일"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{ width: "100%", marginBottom: "10px", padding: "8px" }}
+      />
+
+      <input
+        type="password"
+        placeholder="비밀번호"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        style={{ width: "100%", marginBottom: "15px", padding: "8px" }}
+      />
+
+      <button
+        onClick={async () => {
+          if (isSignup) {
+            const { error } = await supabase.auth.signUp({
+              email,
+              password,
+            })
+
+            if (error) {
+              alert("회원가입 실패 ❌")
+            } else {
+              alert("회원가입 성공 🎉 로그인 해주세요")
+              setIsSignup(false)
+            }
+          } else {
+            const { error } = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            })
+
+            if (error) {
+              alert("로그인 실패 ❌")
+            } else {
+              alert("로그인 성공 🎉")
+              setShowLogin(false)
+            }
+          }
+        }}
+        style={{
+          width: "100%",
+          padding: "10px",
+          background: "#111",
+          color: "white",
+          borderRadius: "6px",
+          marginBottom: "10px"
+        }}
+      >
+        {isSignup ? "회원가입" : "로그인"}
+      </button>
+
+      <button
+        onClick={() => setIsSignup(!isSignup)}
+        style={{
+          width: "100%",
+          padding: "8px",
+          background: "#eee",
+          borderRadius: "6px",
+          marginBottom: "10px"
+        }}
+      >
+        {isSignup ? "이미 계정 있음 → 로그인" : "계정 없음 → 회원가입"}
+      </button>
+
+      <button
+        onClick={() => setShowLogin(false)}
+        style={{
+          width: "100%",
+          padding: "8px",
+          background: "#ddd",
+          borderRadius: "6px"
+        }}
+      >
+        취소
+      </button>
+    </div>
+  </div>
+)}
+
+ <MapContainer
+  key="map"
+  center={[37.5725, 126.979]}
+  zoom={15}
+  whenCreated={(map) => {
+  mapRef.current = map
+}}
+  style={{ height: "100vh", width: "100%" }}
+>
       <TileLayer
         attribution="&copy; OpenStreetMap"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
       <ClickHandler />
+	  <MapController position={position} />
+
+{myLocation && (
+  <Marker
+    position={myLocation}
+    icon={L.divIcon({
+      html: `
+        <div style="
+          width:20px;
+          height:20px;
+          background:#3b82f6;
+          border-radius:50%;
+          border:3px solid white;
+          box-shadow:0 0 10px rgba(59,130,246,0.8);
+        "></div>
+      `,
+      className: "",
+      iconSize: [20, 20],
+    })}
+  >
+    <Popup>📍 내 위치</Popup>
+  </Marker>
+)}
 
       {/* Existing reports */}
       {reports.map((r, i) => (
