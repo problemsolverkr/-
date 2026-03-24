@@ -192,7 +192,7 @@ useEffect(() => {
 
 
 
-  if (!isMounted) return null
+ if (!isMounted || !authReady) return null
 
   // 🎨 Severity colors
   const getSeverityColor = (severity) => {
