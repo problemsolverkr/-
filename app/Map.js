@@ -383,7 +383,7 @@ function MapController({ position }) {
   zIndex: 1000,
   fontWeight: "bold"
 }}>
-  여기꽁
+  꽁스팟
 
   {/* right side */}
   <div style={{
